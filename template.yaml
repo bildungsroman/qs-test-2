@@ -1,6 +1,34 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
 Resources:
+  getItems:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-getItems
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: getItems
+      CodeUri: src/getItems
+      Handler: index.handler
+      Runtime: nodejs8.10
+      MemorySize: 3008
+      Timeout: 300
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Items
+      Events:
+        QuickstartApiGETitems:
+          Type: Api
+          Properties:
+            Path: /items
+            Method: GET
+            RestApiId: !Ref QuickstartApi
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Items
+          TABLE_ARN: !GetAtt Items.Arn
   newItem:
     Type: AWS::Serverless::Function
     Properties:
@@ -12,16 +40,12 @@ Resources:
       Handler: index.handler
       Runtime: nodejs10.x
       MemorySize: 3008
-      Timeout: 30
+      Timeout: 299
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
         - DynamoDBCrudPolicy:
             TableName: !Ref Items
-      Environment:
-        Variables:
-          TABLE_NAME: !Ref Items
-          TABLE_ARN: !GetAtt Items.Arn
       Events:
         QuickstartApiPOSTnewItem:
           Type: Api
@@ -29,34 +53,10 @@ Resources:
             Path: /newItem
             Method: POST
             RestApiId: !Ref QuickstartApi
-  getItems:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${AWS::StackName}-getItems
-      Description: !Sub
-        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
-        - ResourceName: getItems
-      CodeUri: src/getItems
-      Handler: index.handler
-      Runtime: nodejs10.x
-      MemorySize: 3008
-      Timeout: 30
-      Tracing: Active
-      Policies:
-        - AWSXrayWriteOnlyAccess
-        - DynamoDBCrudPolicy:
-            TableName: !Ref Items
       Environment:
         Variables:
           TABLE_NAME: !Ref Items
           TABLE_ARN: !GetAtt Items.Arn
-      Events:
-        QuickstartApiGETitems:
-          Type: Api
-          Properties:
-            Path: /items
-            Method: GET
-            RestApiId: !Ref QuickstartApi
   Items:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -70,6 +70,38 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       TableName: !Sub ${AWS::StackName}-Items
+  deployFrontend:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-deployFrontend
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: deployFrontend
+      CodeUri: src/deployFrontend
+      Handler: index.handler
+      Runtime: nodejs8.10
+      MemorySize: 3008
+      Timeout: 300
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - S3CrudPolicy:
+            BucketName: !Ref Frontend
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref Frontend
+          BUCKET_ARN: !GetAtt Frontend.Arn
+  deployFrontendDeployTrigger:
+    Type: Custom::FunctionDeployTrigger
+    Properties:
+      ServiceToken: !GetAtt deployFrontend.Arn
+      DeploymentTimestamp: !Ref DeploymentTimestamp
+  Frontend:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-frontend-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
   QuickstartApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -97,39 +129,9 @@ Resources:
               responses: {}
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
-      Cors: '''*'''
-  Frontend:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${AWS::StackName}-frontend-${AWS::AccountId}
-      WebsiteConfiguration:
-        IndexDocument: index.html
-  deployFrontend:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${AWS::StackName}-deployFrontend
-      Description: !Sub
-        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
-        - ResourceName: deployFrontend
-      CodeUri: src/deployFrontend
-      Handler: index.handler
-      Runtime: nodejs10.x
-      MemorySize: 3008
-      Timeout: 30
-      Tracing: Active
-      Policies:
-        - AWSXrayWriteOnlyAccess
-        - S3CrudPolicy:
-            BucketName: !Ref Frontend
-      Environment:
-        Variables:
-          BUCKET_NAME: !Ref Frontend
-          BUCKET_ARN: !GetAtt Frontend.Arn
-  deployFrontendDeployTrigger:
-    Type: Custom::FunctionDeployTrigger
-    Properties:
-      ServiceToken: !GetAtt deployFrontend.Arn
-      DeploymentTimestamp: !Ref DeploymentTimestamp
+      Cors:
+        AllowHeaders: '''Authorization,Content-Type'''
+        AllowOrigin: '''*'''
 Parameters:
   StackTagName:
     Type: String

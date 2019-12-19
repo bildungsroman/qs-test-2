@@ -38,7 +38,7 @@ Resources:
         - ResourceName: newItem
       CodeUri: src/newItem
       Handler: index.handler
-      Runtime: nodejs10.x
+      Runtime: nodejs12.x
       MemorySize: 3008
       Timeout: 30
       Tracing: Active
